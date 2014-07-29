@@ -10,10 +10,11 @@ import subprocess
 import re
 import StringIO
 import datetime
+import ConfigParser
+import shlex
 
 RETAG = re.compile(r'(<%.*?%>)', re.DOTALL)
 DATEFMT = '%d %b %Y'
-MDFILE = 'index.md'
 HTMLFILE = 'index.md.html'
 UPDSTR = 'Updated '
 
@@ -26,7 +27,8 @@ def latest():
 
     return upd
 
-def markdown(template, tmplmtime, rootdir, dirpath, filename, force, dryrun):
+def markdown(formatter, template, tmplmtime, rootdir, dirpath, infile, outfile,
+             force, dryrun):
     '''
     Run Markdown (and Python beforehand)
     '''
@@ -40,7 +42,7 @@ def markdown(template, tmplmtime, rootdir, dirpath, filename, force, dryrun):
         latest() > os.stat(HTMLFILE).st_mtime or \
         tmplmtime > os.stat(HTMLFILE).st_mtime: # FIXME Stat twice
         # Open Markdown file
-        fhl = open(dirpath + '/' + filename)
+        fhl = open(dirpath + '/' + infile)
 
         # Run inline Python
         matches = RETAG.split(fhl.read())
@@ -56,9 +58,8 @@ def markdown(template, tmplmtime, rootdir, dirpath, filename, force, dryrun):
         fhl.close()
 
          # Run Markdown
-        proc = subprocess.Popen(['markdown', '--html4tags'],
-                                stdin=subprocess.PIPE,
-                                stdout=subprocess.PIPE)
+        proc = subprocess.Popen(formatter,
+                                stdin=subprocess.PIPE, stdout=subprocess.PIPE)
 
         out, _ = proc.communicate(''.join(matches))
 
@@ -69,7 +70,7 @@ def markdown(template, tmplmtime, rootdir, dirpath, filename, force, dryrun):
             else:
                 upd = ''
         else:
-            mtime = os.stat(filename).st_mtime
+            mtime = os.stat(infile).st_mtime
             upd = UPDSTR + datetime.date.fromtimestamp(mtime).strftime(DATEFMT)
 
         # Get breadcrumbs
@@ -101,12 +102,19 @@ def main():
     parser.add_argument('--template', '-t', help="template HTML file",
                         default='~/.entwine/template.html',
                         type=os.path.expanduser)
+    parser.add_argument('--configfile', '-c', help="configuration file",
+                        default='~/.entwine/entwine.cfg',
+                        type=os.path.expanduser)
     parser.add_argument('--dryrun', '-n', help="don't perform any change",
                         action='store_true')
     parser.add_argument('--force', '-f',
                         help="update all files even if there's no need to",
                         action='store_true')
     args = parser.parse_args()
+
+    # Configuration
+    config = ConfigParser.SafeConfigParser()
+    config.read(args.configfile)
 
     # Load template
     tmplmtime = os.stat(args.template).st_mtime
@@ -116,12 +124,14 @@ def main():
     # Run Markdown on files
     dirpaths = []
     for dirpath, _, filenames in os.walk(args.rootdir):
-        if 'index.md' in filenames:
+        if config.get('formatter', 'infile') in filenames:
             dirpaths.append(dirpath)
 
+    formatter = shlex.split(config.get('formatter', 'command'))
     for dirpath in sorted(dirpaths, key=lambda p: p.count('/'), reverse=True):
-        markdown(template, tmplmtime, args.rootdir, dirpath, MDFILE, args.force,
-                 args.dryrun)
+        markdown(formatter, template, tmplmtime, args.rootdir, dirpath,
+                 config.get('formatter', 'infile'),
+                 config.get('formatter', 'outfile'), args.force, args.dryrun)
 
     # Clean up
     fhl.close()

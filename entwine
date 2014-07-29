@@ -15,7 +15,6 @@ import shlex
 
 RETAG = re.compile(r'(<%.*?%>)', re.DOTALL)
 DATEFMT = '%d %b %Y'
-HTMLFILE = 'index.md.html'
 UPDSTR = 'Updated '
 
 def latest():
@@ -38,11 +37,11 @@ def markdown(formatter, template, tmplmtime, rootdir, dirpath, infile, outfile,
     os.chdir(dirpath)
 
     # Check last change in this subtree
-    if not os.path.isfile(HTMLFILE) or force or \
-        latest() > os.stat(HTMLFILE).st_mtime or \
-        tmplmtime > os.stat(HTMLFILE).st_mtime: # FIXME Stat twice
+    if not os.path.isfile(outfile) or force or \
+        latest() > os.stat(outfile).st_mtime or \
+        tmplmtime > os.stat(outfile).st_mtime: # FIXME Stat twice
         # Open Markdown file
-        fhl = open(dirpath + '/' + infile)
+        fhl = open(infile)
 
         # Run inline Python
         matches = RETAG.split(fhl.read())
@@ -81,9 +80,9 @@ def markdown(formatter, template, tmplmtime, rootdir, dirpath, infile, outfile,
                 ((len(dirnames) - i) * '../', dirname)
 
         # Write HTML
-        print "Writing %s/%s" % (dirpath, HTMLFILE)
+        print "Writing %s/%s" % (dirpath, outfile)
         if not dryrun:
-            fhl = open(HTMLFILE, 'w')
+            fhl = open(outfile, 'w')
             fhl.write(template % (out, upd, breadcrumbs))
             fhl.close()
 

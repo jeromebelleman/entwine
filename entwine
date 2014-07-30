@@ -12,6 +12,7 @@ import StringIO
 import datetime
 import ConfigParser
 import shlex
+import traceback
 
 RETAG = re.compile(r'(<%.*?%>)', re.DOTALL)
 DATEFMT = '%d %b %Y'
@@ -44,6 +45,8 @@ def markdown(formatter, template, tmplmtime, rootdir, dirpath, infile, outfile,
         latest() > os.stat(outfile).st_mtime or \
         tmplmtime > os.stat(outfile).st_mtime: # FIXME Stat twice
 
+        print "Writing %s/%s" % (dirpath, outfile)
+
         # Open Markdown file
         fhl = open(infile)
 
@@ -53,7 +56,11 @@ def markdown(formatter, template, tmplmtime, rootdir, dirpath, infile, outfile,
         globs = {'os': os, '__params__': {}}
         for i, tag in enumerate(matches):
             if tag.startswith('<%'):
-                exec(tag[2:-2], globs) # pylint: disable=exec-statement
+                try:
+                    exec(tag[2:-2], globs) # pylint: disable=exec-statement
+                except Exception: # pylint: disable=broad-except
+                    print >> sys.stderr, \
+                        '\n'.join(traceback.format_exc().splitlines()[3:])
                 matches[i] = sys.stdout.getvalue()
         sys.stdout = sys.__stdout__
 
@@ -87,7 +94,6 @@ def markdown(formatter, template, tmplmtime, rootdir, dirpath, infile, outfile,
                 ((len(dirnames) - i) * '../', dirname)
 
         # Write HTML
-        print "Writing %s/%s" % (dirpath, outfile)
         if not dryrun:
             fhl = open(outfile, 'w')
             fhl.write(template % (styles, out, upd, breadcrumbs))

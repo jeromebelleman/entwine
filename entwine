@@ -15,9 +15,12 @@ import shlex
 
 RETAG = re.compile(r'(<%.*?%>)', re.DOTALL)
 DATEFMT = '%d %b %Y'
-UPDSTR = 'Updated '
 
 def latest():
+    '''
+    Get modification time for last-updated file
+    '''
+
     upd = 0
     for dirpath, dirnames, filenames in os.walk('.'):
         for filename in filenames + dirnames:
@@ -40,6 +43,7 @@ def markdown(formatter, template, tmplmtime, rootdir, dirpath, infile, outfile,
     if not os.path.isfile(outfile) or force or \
         latest() > os.stat(outfile).st_mtime or \
         tmplmtime > os.stat(outfile).st_mtime: # FIXME Stat twice
+
         # Open Markdown file
         fhl = open(infile)
 
@@ -63,14 +67,17 @@ def markdown(formatter, template, tmplmtime, rootdir, dirpath, infile, outfile,
         out, _ = proc.communicate(''.join(matches))
 
         # Get updated time
-        if 'updated' in globs['__params__']:
-            if globs['__params__']['updated']:
-                upd = UPDSTR + globs['__params__']['updated']
-            else:
-                upd = ''
-        else:
+        try:
+            upd = globs['__params__']['updated']
+        except KeyError:
             mtime = os.stat(infile).st_mtime
-            upd = UPDSTR + datetime.date.fromtimestamp(mtime).strftime(DATEFMT)
+            upd = datetime.date.fromtimestamp(mtime).strftime(DATEFMT)
+
+        # Get styles
+        try:
+            styles = globs['__params__']['styles']
+        except KeyError:
+            styles = ''
 
         # Get breadcrumbs
         breadcrumbs = '<a href="/">Home</a>'
@@ -83,7 +90,7 @@ def markdown(formatter, template, tmplmtime, rootdir, dirpath, infile, outfile,
         print "Writing %s/%s" % (dirpath, outfile)
         if not dryrun:
             fhl = open(outfile, 'w')
-            fhl.write(template % (out, upd, breadcrumbs))
+            fhl.write(template % (styles, out, upd, breadcrumbs))
             fhl.close()
 
     # Step back

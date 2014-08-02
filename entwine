@@ -52,7 +52,10 @@ def markdown(formatter, template, tmplmtime, rootdir, dirpath, infile, outfile,
 
         # Run inline Python
         matches = RETAG.split(fhl.read())
-        globs = {'os': os, '__params__': {}}
+        globs = {
+            '__params__': {},
+            'os': os,
+        }
         for i, tag in enumerate(matches):
             if tag.startswith('<%'):
                 sys.stdout = StringIO.StringIO()

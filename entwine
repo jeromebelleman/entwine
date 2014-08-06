@@ -15,7 +15,6 @@ import ConfigParser
 import shlex
 import traceback
 
-SITENAME = "My Web Site"
 RETAG = re.compile(r'(<%.*?%>)', re.DOTALL)
 RETITLE = re.compile(r'^# (.*)', re.MULTILINE)
 DATEFMT = '%d %b %Y'
@@ -33,8 +32,8 @@ def latest():
 
     return upd
 
-def markdown(formatter, template, tmplmtime, rootdir, dirpath, infile, outfile,
-             force, dryrun):
+def markdown(formatter, name, template, tmplmtime, rootdir, dirpath, infile,
+             outfile, force, dryrun):
     '''
     Run Markdown (and Python beforehand)
     '''
@@ -82,9 +81,9 @@ def markdown(formatter, template, tmplmtime, rootdir, dirpath, infile, outfile,
 
         # Get title
         try:
-            title = '%s – %s' % (SITENAME, RETITLE.search(contents).group(1))
+            title = '%s: %s' % (name, RETITLE.search(contents).group(1))
         except AttributeError:
-            title = SITENAME
+            title = name
 
         # Get styles
         try:
@@ -154,8 +153,8 @@ def main():
 
     formatter = shlex.split(config.get('formatter', 'command'))
     for dirpath in sorted(dirpaths, key=lambda p: p.count('/'), reverse=True):
-        markdown(formatter, template, tmplmtime, args.rootdir, dirpath,
-                 config.get('formatter', 'infile'),
+        markdown(formatter, config.get('entwine', 'name'), template, tmplmtime,
+                 args.rootdir, dirpath, config.get('formatter', 'infile'),
                  config.get('formatter', 'outfile'), args.force, args.dryrun)
 
     # Clean up

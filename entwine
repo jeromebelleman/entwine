@@ -1,4 +1,5 @@
 #! /usr/bin/env python
+# coding=utf-8
 
 '''
 Generate web site
@@ -91,15 +92,21 @@ def markdown(formatter, template, tmplmtime, rootdir, dirpath, infile, outfile,
 
         # Get breadcrumbs
         breadcrumbs = '<a href="/">Home</a>'
-        dirnames = dirpath[len(rootdir):].split('/')[1:-1]
-        for i, dirname in enumerate(dirnames):
+        dirnames = dirpath[len(rootdir):].split('/')[1:]
+        for i, dirname in enumerate(dirnames[:-1]):
             breadcrumbs += '/<a href="%s">%s</a>' % \
                 ((len(dirnames) - i) * '../', dirname)
+
+        # Get title
+        try:
+            title = 'My Web Site – %s' % dirnames[-1].capitalize()
+        except IndexError:
+            title = 'My Web Site – Home'
 
         # Write HTML
         if not dryrun:
             fhl = open(outfile, 'w')
-            fhl.write(template % (styles, out, upd, breadcrumbs))
+            fhl.write(template % (title, styles, out, upd, breadcrumbs))
             fhl.close()
 
     # Step back

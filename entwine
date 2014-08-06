@@ -15,7 +15,9 @@ import ConfigParser
 import shlex
 import traceback
 
+SITENAME = "My Web Site"
 RETAG = re.compile(r'(<%.*?%>)', re.DOTALL)
+RETITLE = re.compile(r'^# (.*)', re.MULTILINE)
 DATEFMT = '%d %b %Y'
 
 def latest():
@@ -50,9 +52,10 @@ def markdown(formatter, template, tmplmtime, rootdir, dirpath, infile, outfile,
 
         # Open Markdown file
         fhl = open(infile)
+        contents = fhl.read()
 
         # Run inline Python
-        matches = RETAG.split(fhl.read())
+        matches = RETAG.split(contents)
         globs = {
             '__params__': {},
             'os': os,
@@ -99,9 +102,9 @@ def markdown(formatter, template, tmplmtime, rootdir, dirpath, infile, outfile,
 
         # Get title
         try:
-            title = 'My Web Site – %s' % dirnames[-1].capitalize()
-        except IndexError:
-            title = 'My Web Site – Home'
+            title = '%s – %s' % (SITENAME, RETITLE.search(contents).group(1))
+        except AttributeError:
+            title = SITENAME
 
         # Write HTML
         if not dryrun:

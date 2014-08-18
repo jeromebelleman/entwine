@@ -100,8 +100,8 @@ def markdown(formatter, name, template, tmplmtime, rootdir, dirpath, infile,
 
         # Get breadcrumbs
         breadcrumbs = '<a href="/">Home</a>'
-        dirnames = dirpath[len(rootdir):].split('/')[1:]
-        for i, dirname in enumerate(dirnames[:-1]):
+        dirnames = dirpath[len(rootdir):].split('/')[1:-1]
+        for i, dirname in enumerate(dirnames):
             breadcrumbs += '/<a href="%s">%s</a>' % \
                 ((len(dirnames) - i) * '../', dirname)
 

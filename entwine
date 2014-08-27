@@ -8,6 +8,7 @@ Generate web site
 import sys, os
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import subprocess
+import string
 import re
 import StringIO
 import datetime
@@ -17,7 +18,15 @@ import traceback
 
 RETAG = re.compile(r'(<%.*?%>)', re.DOTALL)
 RETITLE = re.compile(r'^# (.*)', re.MULTILINE)
+REOPTIONS = re.compile(r'<!-- +(.*?) +-->')
 DATEFMT = '%d %b %Y'
+
+class MarkdownTemplate(string.Template):
+    '''
+    Markdown template
+    '''
+
+    delimiter = '%%'
 
 def latest():
     '''
@@ -32,7 +41,7 @@ def latest():
 
     return upd
 
-def markdown(formatter, name, template, tmplmtime, rootdir, dirpath, infile,
+def markdown(cfgdir, tmplmtime, rootdir, dirpath, infile,
              outfile, force, dryrun):
     '''
     Run Markdown (and Python beforehand)
@@ -52,6 +61,15 @@ def markdown(formatter, name, template, tmplmtime, rootdir, dirpath, infile,
         # Open Markdown file
         fhl = open(infile)
         contents = fhl.read()
+
+        # Read options
+        try:
+            first = contents.find('\n')
+            match = REOPTIONS.match(contents[:first])
+            opts = ['--' + opt for opt in match.group(1).split()]
+            contents = contents[first + 1:]
+        except AttributeError:
+            opts = []
 
         # Run inline Python
         matches = RETAG.split(contents)
@@ -74,22 +92,12 @@ def markdown(formatter, name, template, tmplmtime, rootdir, dirpath, infile,
         fhl.close()
 
          # Run Markdown
-        proc = subprocess.Popen(formatter,
+        proc = subprocess.Popen(['pandoc', '--template',
+                                 cfgdir + '/template.html', '-H',
+                                 cfgdir + '/styles.css'] + opts,
                                 stdin=subprocess.PIPE, stdout=subprocess.PIPE)
 
         out, _ = proc.communicate(''.join(matches))
-
-        # Get title
-        try:
-            title = '%s: %s' % (name, RETITLE.search(contents).group(1))
-        except AttributeError:
-            title = name
-
-        # Get styles
-        try:
-            styles = globs['__params__']['styles']
-        except KeyError:
-            styles = ''
 
         # Get updated time
         try:
@@ -108,7 +116,8 @@ def markdown(formatter, name, template, tmplmtime, rootdir, dirpath, infile,
         # Write HTML
         if not dryrun:
             fhl = open(outfile, 'w')
-            fhl.write(template % (title, styles, out, upd, breadcrumbs))
+            template = MarkdownTemplate(out)
+            fhl.write(template.substitute(upd=upd, breadcrumbs=breadcrumbs))
             fhl.close()
 
     # Step back
@@ -123,12 +132,8 @@ def main():
                             formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument('rootdir', help="root directory",
                         type=os.path.expanduser)
-    parser.add_argument('--template', '-t', help="template HTML file",
-                        default='~/.entwine/template.html',
-                        type=os.path.expanduser)
-    parser.add_argument('--configfile', '-c', help="configuration file",
-                        default='~/.entwine/entwine.cfg',
-                        type=os.path.expanduser)
+    parser.add_argument('--cfgdir', '-c', help="configuration directory",
+                        default='~/.entwine', type=os.path.expanduser)
     parser.add_argument('--dryrun', '-n', help="don't perform any change",
                         action='store_true')
     parser.add_argument('--force', '-f',
@@ -138,12 +143,10 @@ def main():
 
     # Configuration
     config = ConfigParser.SafeConfigParser()
-    config.read(args.configfile)
+    config.read(args.cfgdir + '/entwine.cfg')
 
-    # Load template
-    tmplmtime = os.stat(args.template).st_mtime
-    fhl = open(args.template)
-    template = fhl.read()
+    # Get template modification time
+    tmplmtime = os.stat(args.cfgdir + '/template.html').st_mtime
 
     # Run Markdown on files
     dirpaths = []
@@ -151,14 +154,10 @@ def main():
         if config.get('formatter', 'infile') in filenames:
             dirpaths.append(dirpath)
 
-    formatter = shlex.split(config.get('formatter', 'command'))
     for dirpath in sorted(dirpaths, key=lambda p: p.count('/'), reverse=True):
-        markdown(formatter, config.get('entwine', 'name'), template, tmplmtime,
+        markdown(args.cfgdir, tmplmtime,
                  args.rootdir, dirpath, config.get('formatter', 'infile'),
                  config.get('formatter', 'outfile'), args.force, args.dryrun)
-
-    # Clean up
-    fhl.close()
 
 if __name__ == '__main__':
     sys.exit(main())

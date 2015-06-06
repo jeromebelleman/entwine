@@ -42,7 +42,7 @@ def latest():
     return upd
 
 def markdown(cfgdir, tmplmtime, rootdir, dirpath, infile,
-             outfile, force, dryrun):
+             outfile, author, force, dryrun):
     '''
     Run Markdown (and Python beforehand)
     '''
@@ -105,6 +105,10 @@ def markdown(cfgdir, tmplmtime, rootdir, dirpath, infile,
         except KeyError:
             mtime = os.stat(infile).st_mtime
             upd = datetime.date.fromtimestamp(mtime).strftime(DATEFMT)
+        if upd:
+            upd += ', ' + author
+        else:
+            upd = author
 
         # Get breadcrumbs
         breadcrumbs = '<a href="/">Home</a>'
@@ -156,8 +160,11 @@ def main():
 
     for dirpath in sorted(dirpaths, key=lambda p: p.count('/'), reverse=True):
         markdown(args.cfgdir, tmplmtime,
-                 args.rootdir, dirpath, config.get('formatter', 'infile'),
-                 config.get('formatter', 'outfile'), args.force, args.dryrun)
+                 args.rootdir, dirpath,
+                 config.get('formatter', 'infile'),
+                 config.get('formatter', 'outfile'),
+                 config.get('data', 'author'),
+                 args.force, args.dryrun)
 
 if __name__ == '__main__':
     sys.exit(main())

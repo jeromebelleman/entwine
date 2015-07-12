@@ -25,12 +25,34 @@ RETITLE = re.compile(r'^# (.*)', re.MULTILINE)
 REOPTIONS = re.compile(r'<!-- +(.*?) +-->')
 DATEFMT = '%d %b %Y'
 
+HEAD0 = r'<?xml version="1.0" encoding="UTF-8"?>'
+HEAD1 = r'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+
 class MarkdownTemplate(string.Template):
     '''
     Markdown template
     '''
 
     delimiter = '%%'
+
+def sitemaps(config, rootdir, dryrun):
+    '''
+    Write site maps
+    '''
+
+    for filename in config['sitemaps']['files']:
+        path = '%s/%s' % (rootdir, filename)
+        print "Writing " + path
+        if not dryrun:
+            with open(path, 'w') as fhl:
+                print >> fhl, HEAD0
+                print >> fhl, HEAD1
+                print >> fhl, r'  <url><loc>%s</loc></url>' % \
+                    config['sitemaps']['files'][filename]
+                for url in config['sitemaps']['urls']:
+                    print >> fhl, r'  <url><loc>%s/%s</loc></url>' % \
+                        (config['sitemaps']['files'][filename], url)
+                print >> fhl, r'</urlset>'
 
 def latest():
     '''
@@ -138,7 +160,7 @@ def main():
 
     parser = ArgumentParser(description="generate web site",
                             formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--root', '-r', help="override root directory",
+    parser.add_argument('--rootdir', '-r', help="override root directory",
                         type=os.path.expanduser)
     parser.add_argument('--cfgdir', '-c', help="configuration directory",
                         default='~/.entwine', type=os.path.expanduser)
@@ -157,23 +179,26 @@ def main():
     tmplmtime = os.stat(args.cfgdir + '/template.html').st_mtime
 
     # Set root dir
-    root = args.root \
-           if args.root \
-           else os.path.expanduser(config['formatter']['root'])
+    rootdir = args.rootdir \
+              if args.rootdir \
+              else os.path.expanduser(config['formatter']['rootdir'])
 
     # Run Markdown on files
     dirpaths = []
-    for dirpath, _, filenames in os.walk(root):
+    for dirpath, _, filenames in os.walk(rootdir):
         if config['formatter']['infile'] in filenames:
             dirpaths.append(dirpath)
 
     for dirpath in sorted(dirpaths, key=lambda p: p.count('/'), reverse=True):
         markdown(args.cfgdir, tmplmtime,
-                 root, dirpath,
+                 rootdir, dirpath,
                  config['formatter']['infile'],
                  config['formatter']['outfile'],
-                 config['data']['author'],
+                 config['formatter']['author'],
                  args.force, args.dryrun)
+
+    # Write site maps
+    sitemaps(config, rootdir, args.dryrun)
 
 if __name__ == '__main__':
     sys.exit(main())

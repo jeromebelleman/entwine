@@ -138,7 +138,7 @@ def main():
 
     parser = ArgumentParser(description="generate web site",
                             formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument('rootdir', help="root directory",
+    parser.add_argument('--root', '-r', help="override root directory",
                         type=os.path.expanduser)
     parser.add_argument('--cfgdir', '-c', help="configuration directory",
                         default='~/.entwine', type=os.path.expanduser)
@@ -156,15 +156,20 @@ def main():
     # Get template modification time
     tmplmtime = os.stat(args.cfgdir + '/template.html').st_mtime
 
+    # Set root dir
+    root = args.root \
+           if args.root \
+           else os.path.expanduser(config['formatter']['root'])
+
     # Run Markdown on files
     dirpaths = []
-    for dirpath, _, filenames in os.walk(args.rootdir):
+    for dirpath, _, filenames in os.walk(root):
         if config['formatter']['infile'] in filenames:
             dirpaths.append(dirpath)
 
     for dirpath in sorted(dirpaths, key=lambda p: p.count('/'), reverse=True):
         markdown(args.cfgdir, tmplmtime,
-                 args.rootdir, dirpath,
+                 root, dirpath,
                  config['formatter']['infile'],
                  config['formatter']['outfile'],
                  config['data']['author'],

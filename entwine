@@ -5,14 +5,18 @@
 Generate web site
 '''
 
-import sys, os
+import sys
+reload(sys)
+sys.setdefaultencoding('UTF8')
+
+import os
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import subprocess
 import string
 import re
 import StringIO
 import datetime
-import ConfigParser
+import yaml
 import shlex
 import traceback
 
@@ -146,8 +150,8 @@ def main():
     args = parser.parse_args()
 
     # Configuration
-    config = ConfigParser.SafeConfigParser()
-    config.read(args.cfgdir + '/entwine.cfg')
+    with open(args.cfgdir + '/entwine.yaml') as fhl:
+        config = yaml.load(fhl, Loader=yaml.BaseLoader)
 
     # Get template modification time
     tmplmtime = os.stat(args.cfgdir + '/template.html').st_mtime
@@ -155,15 +159,15 @@ def main():
     # Run Markdown on files
     dirpaths = []
     for dirpath, _, filenames in os.walk(args.rootdir):
-        if config.get('formatter', 'infile') in filenames:
+        if config['formatter']['infile'] in filenames:
             dirpaths.append(dirpath)
 
     for dirpath in sorted(dirpaths, key=lambda p: p.count('/'), reverse=True):
         markdown(args.cfgdir, tmplmtime,
                  args.rootdir, dirpath,
-                 config.get('formatter', 'infile'),
-                 config.get('formatter', 'outfile'),
-                 config.get('data', 'author'),
+                 config['formatter']['infile'],
+                 config['formatter']['outfile'],
+                 config['data']['author'],
                  args.force, args.dryrun)
 
 if __name__ == '__main__':

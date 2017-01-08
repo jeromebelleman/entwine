@@ -41,8 +41,9 @@ would in HTML.
 
 # RUNNING PYTHON FROM TEMPLATES
 
-You can do so between `<%` and `%>` tags. Available attributes in scope
-are the `os` module, the `__params__` dictionary.
+You can do so between `<%` and `%>` tags, which must be added on lines of
+their owns. Available attributes in scope are the `os` module, the `__params__`
+dictionary.
 
 Note that you can set `__params__['updated']` to any literal string. It's
 also typically formatted as `%d %b %Y`, although you could take the liberty

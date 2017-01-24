@@ -120,7 +120,8 @@ def markdown(cfgdir, tmplmtime, rootdir, dirpath, infile,
          # Run Markdown
         proc = subprocess.Popen(['pandoc', '--template',
                                  cfgdir + '/template.html', '-H',
-                                 cfgdir + '/styles.css'] + opts,
+                                 cfgdir + '/styles.css',
+                                 '-Vpath=' + dirpath[len(rootdir):]] + opts,
                                 stdin=subprocess.PIPE, stdout=subprocess.PIPE)
 
         out, _ = proc.communicate(''.join(matches))

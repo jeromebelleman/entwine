@@ -16,9 +16,9 @@ import string
 import re
 import StringIO
 import datetime
-import yaml
 import shlex
 import traceback
+import yaml
 
 RETAG = re.compile(r'(<%.*?%>)', re.DOTALL)
 RETITLE = re.compile(r'^# (.*)', re.MULTILINE)
@@ -67,7 +67,7 @@ def latest():
 
     return upd
 
-def markdown(cfgdir, tmplmtime, rootdir, dirpath, infile,
+def markdown(cfgdir, tmplmtime, rootdir, dirpath, infile, # pylint: disable=too-many-locals
              outfile, author, force, dryrun):
     '''
     Run Markdown (and Python beforehand)
@@ -107,12 +107,12 @@ def markdown(cfgdir, tmplmtime, rootdir, dirpath, infile,
             if tag.startswith('<%'):
                 sys.stdout = StringIO.StringIO()
                 try:
-                    exec(tag[2:-2], globs) # pylint: disable=exec-statement
+                    exec(tag[2:-2], globs) # pylint: disable=exec-used
                 except Exception: # pylint: disable=broad-except
                     print >> sys.stderr, \
                         '\n'.join(traceback.format_exc().splitlines()[3:])
                 matches[i] = sys.stdout.getvalue()
-                sys.stdout = sys.__stdout__
+                sys.stdout = sys.__stdout__ # pylint: disable=redefined-variable-type
 
         # Clean up
         fhl.close()

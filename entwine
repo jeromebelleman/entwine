@@ -164,7 +164,8 @@ def main():
     parser.add_argument('--rootdir', '-r', help="override root directory",
                         type=os.path.expanduser)
     parser.add_argument('--cfgdir', '-c', help="configuration directory",
-                        default='~/.entwine', type=os.path.expanduser)
+                        default='~/.entwine',
+                        type=lambda x: os.path.abspath(os.path.expanduser(x)))
     parser.add_argument('--dryrun', '-n', help="don't perform any change",
                         action='store_true')
     parser.add_argument('--force', '-f',

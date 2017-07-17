@@ -35,13 +35,13 @@ class MarkdownTemplate(string.Template):
 
     delimiter = '%%'
 
-def sitemaps(config, rootdir, dryrun):
+def sitemaps(config, outdir, dryrun):
     '''
     Write site maps
     '''
 
     for filename in config['sitemaps']['files']:
-        path = '%s/%s' % (rootdir, filename)
+        path = '%s/%s' % (outdir, filename)
         print "Writing " + path
         if not dryrun:
             with open(path, 'w') as fhl:
@@ -67,8 +67,9 @@ def latest():
 
     return upd
 
-def markdown(cfgdir, tmplmtime, rootdir, dirpath, infile, # pylint: disable=too-many-locals
-             outfile, author, force, dryrun):
+def markdown(cfgdir, # pylint: disable=too-many-locals, too-many-statements
+             tmplmtime, indir, outdir, dirpath, infile, outfile, author,
+             force, dryrun):
     '''
     Run Markdown (and Python beforehand)
     '''
@@ -76,13 +77,22 @@ def markdown(cfgdir, tmplmtime, rootdir, dirpath, infile, # pylint: disable=too-
     # Move to Markdown file's directory
     olddirpath = os.getcwd()
     os.chdir(dirpath)
+    dirpath = dirpath[len(indir):] # Or len(outdir), doesn't matter
+    outdir = '%s%s' % (outdir, dirpath)
+    outpath = '%s/%s' % (outdir, outfile)
 
     # Check last change in this subtree
-    if not os.path.isfile(outfile) or force or \
-        latest() > os.stat(outfile).st_mtime or \
-        tmplmtime > os.stat(outfile).st_mtime: # FIXME Stat twice
+    if not os.path.isfile(outpath) or force or \
+        latest() > os.stat(outpath).st_mtime or \
+        tmplmtime > os.stat(outpath).st_mtime: # FIXME Stat twice
 
-        print "Writing %s/%s" % (dirpath, outfile)
+        # Make directories, deep as we can so cause time changes
+        if not os.path.lexists(outdir):
+            print "Making %s/" % outdir
+            if not dryrun:
+                os.makedirs(outdir)
+
+        print "Writing %s" % outpath
 
         # Open Markdown file
         fhl = open(infile)
@@ -121,7 +131,7 @@ def markdown(cfgdir, tmplmtime, rootdir, dirpath, infile, # pylint: disable=too-
         proc = subprocess.Popen(['pandoc', '--template',
                                  cfgdir + '/template.html', '-H',
                                  cfgdir + '/styles.css',
-                                 '-Vpath=' + infile] + opts,
+                                 '-Vpath=' + dirpath] + opts,
                                 stdin=subprocess.PIPE, stdout=subprocess.PIPE)
 
         out, _ = proc.communicate(''.join(matches))
@@ -139,14 +149,14 @@ def markdown(cfgdir, tmplmtime, rootdir, dirpath, infile, # pylint: disable=too-
 
         # Get breadcrumbs
         breadcrumbs = '<a href="/">Home</a>'
-        dirnames = dirpath[len(rootdir):].split('/')[1:-1]
+        dirnames = dirpath.split('/')[1:-1]
         for i, dirname in enumerate(dirnames):
             breadcrumbs += '/<a href="%s">%s</a>' % \
                 ((len(dirnames) - i) * '../', dirname)
 
         # Write HTML
         if not dryrun:
-            fhl = open(outfile, 'w')
+            fhl = open(outpath, 'w')
             template = MarkdownTemplate(out)
             fhl.write(template.substitute(upd=upd, breadcrumbs=breadcrumbs))
             fhl.close()
@@ -161,11 +171,13 @@ def main():
 
     parser = ArgumentParser(description="generate web site",
                             formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--rootdir', '-r', help="override root directory",
-                        type=os.path.expanduser)
     parser.add_argument('--cfgdir', '-c', help="configuration directory",
                         default='~/.entwine',
                         type=lambda x: os.path.abspath(os.path.expanduser(x)))
+    parser.add_argument('--indir', '-i', help="input page directory",
+                        type=os.path.expanduser)
+    parser.add_argument('--outdir', '-o', help="output page directory",
+                        type=os.path.expanduser)
     parser.add_argument('--dryrun', '-n', help="don't perform any change",
                         action='store_true')
     parser.add_argument('--force', '-f',
@@ -180,27 +192,31 @@ def main():
     # Get template modification time
     tmplmtime = os.stat(args.cfgdir + '/template.html').st_mtime
 
-    # Set root dir
-    rootdir = args.rootdir \
-              if args.rootdir \
-              else os.path.expanduser(config['formatter']['rootdir'])
+    # Set input and output directories
+    indir = args.indir \
+        if args.indir \
+        else os.path.abspath(os.path.expanduser(config['formatter']['indir']))
+    outdir = args.outdir \
+        if args.outdir \
+        else os.path.abspath(os.path.expanduser(config['formatter']['outdir']))
 
-    # Run Markdown on files
+    # Make directories and inventory paths to sort them later on
     dirpaths = []
-    for dirpath, _, filenames in os.walk(rootdir):
+    for dirpath, _, filenames in os.walk(indir):
         if config['formatter']['infile'] in filenames:
             dirpaths.append(dirpath)
 
+    # Sort paths deepest first to collect changed times & run Markdown on files
     for dirpath in sorted(dirpaths, key=lambda p: p.count('/'), reverse=True):
         markdown(args.cfgdir, tmplmtime,
-                 rootdir, dirpath,
+                 indir, outdir, dirpath,
                  config['formatter']['infile'],
                  config['formatter']['outfile'],
                  config['formatter']['author'],
                  args.force, args.dryrun)
 
     # Write site maps
-    sitemaps(config, rootdir, args.dryrun)
+    sitemaps(config, outdir, args.dryrun)
 
 if __name__ == '__main__':
     sys.exit(main())

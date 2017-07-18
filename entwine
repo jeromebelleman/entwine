@@ -86,12 +86,6 @@ def markdown(cfgdir, # pylint: disable=too-many-locals, too-many-statements
         latest() > os.stat(outpath).st_mtime or \
         tmplmtime > os.stat(outpath).st_mtime: # FIXME Stat twice
 
-        # Make directories, deep as we can so cause time changes
-        if not os.path.lexists(outdir):
-            print "Making %s/" % outdir
-            if not dryrun:
-                os.makedirs(outdir)
-
         print "Writing %s" % outpath
 
         # Open Markdown file
@@ -205,6 +199,15 @@ def main():
     for dirpath, _, filenames in os.walk(indir):
         if config['formatter']['infile'] in filenames:
             dirpaths.append(dirpath)
+
+        # Make directories
+        # It's fine to start at root because directories don't need to know
+        # about time changes, only templated files do.
+        outpath = '%s%s' % (outdir, dirpath[len(indir):])
+        if not os.path.lexists(outpath):
+            print "Making %s/" % outpath
+            if not args.dryrun:
+                os.mkdir(outpath)
 
     # Sort paths deepest first to collect changed times & run Markdown on files
     for dirpath in sorted(dirpaths, key=lambda p: p.count('/'), reverse=True):

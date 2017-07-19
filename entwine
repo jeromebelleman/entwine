@@ -83,7 +83,7 @@ def markdown(cfgdir, # pylint: disable=too-many-locals, too-many-statements
     olddirpath = os.getcwd()
     os.chdir(dirpath)
     dirpath = dirpath[len(outdir):]
-    infile = indir + dirpath + '/' + infile
+    inpath = indir + dirpath + '/' + infile
 
     # Check last change in this subtree
     if not os.path.isfile(outfile) or force or \
@@ -93,7 +93,7 @@ def markdown(cfgdir, # pylint: disable=too-many-locals, too-many-statements
         print "Writing %s/%s" % (os.getcwd(), outfile)
 
         # Open Markdown file
-        fhl = open(infile)
+        fhl = open(inpath)
         contents = fhl.read()
 
         # Read options
@@ -110,6 +110,7 @@ def markdown(cfgdir, # pylint: disable=too-many-locals, too-many-statements
         globs = {
             '__params__': {},
             'os': os,
+            'inpath': inpath,
         }
         for i, tag in enumerate(matches):
             if tag.startswith('<%'):
@@ -138,7 +139,7 @@ def markdown(cfgdir, # pylint: disable=too-many-locals, too-many-statements
         try:
             upd = globs['__params__']['updated']
         except KeyError:
-            mtime = os.stat(infile).st_mtime
+            mtime = os.stat(inpath).st_mtime
             upd = datetime.date.fromtimestamp(mtime).strftime(DATEFMT)
         if upd:
             upd += ', ' + author

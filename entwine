@@ -41,11 +41,13 @@ def sitemaps(config, outdir, dryrun):
     Write site maps
     '''
 
+    olddirpath = os.getcwd()
+    os.chdir(outdir)
+
     for filename in config['sitemaps']['files']:
-        path = '%s/%s' % (outdir, filename)
-        print "Writing " + path
+        print "Writing %s/%s" % (os.getcwd(), filename)
         if not dryrun:
-            with open(path, 'w') as fhl:
+            with open(filename, 'w') as fhl:
                 print >> fhl, HEAD0
                 print >> fhl, HEAD1
                 print >> fhl, r'  <url><loc>%s</loc></url>' % \
@@ -54,6 +56,8 @@ def sitemaps(config, outdir, dryrun):
                     print >> fhl, r'  <url><loc>%s/%s</loc></url>' % \
                         (config['sitemaps']['files'][filename], url)
                 print >> fhl, r'</urlset>'
+
+    os.chdir(olddirpath)
 
 def latest():
     '''
@@ -75,19 +79,18 @@ def markdown(cfgdir, # pylint: disable=too-many-locals, too-many-statements
     Run Markdown (and Python beforehand)
     '''
 
-    # Move to Markdown file's directory
+    # Move to output directory
     olddirpath = os.getcwd()
     os.chdir(dirpath)
-    dirpath = dirpath[len(indir):] # Or len(outdir), doesn't matter
-    outdir = '%s%s' % (outdir, dirpath)
-    outpath = '%s/%s' % (outdir, outfile)
+    dirpath = dirpath[len(outdir):]
+    infile = indir + dirpath + '/' + infile
 
     # Check last change in this subtree
-    if not os.path.isfile(outpath) or force or \
-        latest() > os.stat(outpath).st_mtime or \
-        tmplmtime > os.stat(outpath).st_mtime: # FIXME Stat twice
+    if not os.path.isfile(outfile) or force or \
+        latest() > os.stat(outfile).st_mtime or \
+        tmplmtime > os.stat(outfile).st_mtime:
 
-        print "Writing %s" % outpath
+        print "Writing %s/%s" % (os.getcwd(), outfile)
 
         # Open Markdown file
         fhl = open(infile)
@@ -151,7 +154,7 @@ def markdown(cfgdir, # pylint: disable=too-many-locals, too-many-statements
 
         # Write HTML
         if not dryrun:
-            fhl = open(outpath, 'w')
+            fhl = open(outfile, 'w')
             template = MarkdownTemplate(out)
             fhl.write(template.substitute(upd=upd, breadcrumbs=breadcrumbs))
             fhl.close()
@@ -164,6 +167,7 @@ def main():
     Main loop
     '''
 
+    # Parse arguments
     parser = ArgumentParser(description="generate web site",
                             formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument('--cfgdir', '-c', help="configuration directory",
@@ -173,7 +177,8 @@ def main():
                         type=os.path.expanduser)
     parser.add_argument('--outdir', '-o', help="output page directory",
                         type=os.path.expanduser)
-    parser.add_argument('--dryrun', '-n', help="don't perform any change",
+    parser.add_argument('--dryrun', '-n',
+                        help="don't write anything except directories",
                         action='store_true')
     parser.add_argument('--force', '-f',
                         help="update all files even if there's no need to",
@@ -196,34 +201,37 @@ def main():
         else os.path.abspath(os.path.expanduser(config['formatter']['outdir']))
 
     # Inventory paths to sort them later on and make files and directories
-    # which don't need to bear time changes
+    # which don't need to bear time changes.
+    # It's fine to start at root because directories and static files don't
+    # need to bear time changes, only templated files do.
     dirpaths = []
     for dirpath, _, filenames in os.walk(indir):
 
-        outdirpath = '%s%s' % (outdir, dirpath[len(indir):])
+        outpath = outdir + dirpath[len(indir):]
 
         # Make directories
-        # It's fine to start at root because directories don't need to bear
-        # time changes, only templated files do.
-        if not os.path.lexists(outdirpath):
-            print "Making %s/" % outdirpath
-            if not args.dryrun:
-                os.mkdir(outdirpath)
+        if not os.path.lexists(outpath):
+            print "Making %s/" % outpath
+            os.mkdir(outpath)
+
+        olddirpath = os.getcwd()
+        os.chdir(outpath)
 
         # Inventory templated files and copy static files
         for filename in filenames:
             if filename == config['formatter']['infile']:
-                dirpaths.append(dirpath)
+                dirpaths.append(os.getcwd())
             else:
-                inpath = '%s/%s' % (dirpath, filename)
-                outpath = '%s/%s' % (outdirpath, filename)
-                if not os.path.lexists(outpath) or args.force or \
-                    os.stat(inpath).st_mtime > os.stat(outpath).st_mtime:
-                    print "Copying to %s" % outpath
+                inpath = dirpath + '/' + filename
+                if not os.path.lexists(filename) or args.force or \
+                    os.stat(inpath).st_mtime > os.stat(filename).st_mtime:
+                    print "Copying to %s/%s" % (os.getcwd(), filename)
                     if not args.dryrun:
-                        shutil.copy2(inpath, outpath)
+                        shutil.copy2(inpath, '.')
 
-    # Sort paths deepest first to collect changed times & run Markdown on files
+        os.chdir(olddirpath)
+
+    # Sort paths deepest first to collect changed times, run Markdown on files
     for dirpath in sorted(dirpaths, key=lambda p: p.count('/'), reverse=True):
         markdown(args.cfgdir, tmplmtime,
                  indir, outdir, dirpath,

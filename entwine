@@ -16,14 +16,12 @@ import string
 import re
 import StringIO
 import datetime
-import shlex
 import traceback
 import shutil
 import yaml
 
+REMETA = re.compile(r'(?:---\n(?P<meta>.*?)\n---)?(?P<body>.*)', re.DOTALL)
 RETAG = re.compile(r'(<%.*?%>)', re.DOTALL)
-RETITLE = re.compile(r'^# (.*)', re.MULTILINE)
-REOPTIONS = re.compile(r'<!-- +(.*?) +-->')
 DATEFMT = '%d %b %Y'
 
 HEAD0 = r'<?xml version="1.0" encoding="UTF-8"?>'
@@ -72,7 +70,20 @@ def latest():
 
     return upd
 
-def markdown(cfgdir, # pylint: disable=too-many-locals, too-many-statements
+def loadmd(path):
+    '''
+    Load Markdown file, returning match with metadata and body
+    '''
+
+    with open(path) as fhl:
+        match = REMETA.match(fhl.read())
+        meta = match.group('meta')
+        if meta:
+            meta = yaml.load(meta)
+        return meta, match.group('body')
+
+
+def markdown(cfgdir, # pylint: disable=too-many-locals, too-many-statements, too-many-branches
              tmplmtime, indir, outdir, dirpath, infile, outfile, author,
              force, dryrun):
     '''
@@ -92,24 +103,34 @@ def markdown(cfgdir, # pylint: disable=too-many-locals, too-many-statements
 
         print "Writing %s/%s" % (os.getcwd(), outfile)
 
-        # Open Markdown file
-        fhl = open(inpath)
-        contents = fhl.read()
+        # Load Markdown file
+        meta, body = loadmd(inpath)
 
-        # Read options
-        try:
-            first = contents.find('\n')
-            match = REOPTIONS.match(contents[:first])
-            opts = ['--' + opt for opt in shlex.split(match.group(1))]
-            contents = contents[first + 1:]
-        except AttributeError:
-            opts = []
+        # Write more metadata
+        if meta is None:
+            meta = {}
+        if 'path' not in meta:
+            meta['path'] = dirpath
+
+        # Build options
+        opts = []
+        if 'options' in meta:
+            for opt in meta['options']:
+                if isinstance(meta['options'][opt], bool):
+                    if meta['options'][opt]:
+                        opts.append('--' + opt)
+                else:
+                    opts.append('--%s=%s' % (opt, meta['options'][opt]))
 
         # Run inline Python
-        matches = RETAG.split(contents)
+        matches = RETAG.split(yaml.dump(meta,
+                                        default_flow_style=False,
+                                        explicit_start=True,
+                                        explicit_end=True) + body)
         globs = {
             '__params__': {},
             'os': os,
+            'loadmd': loadmd,
             'inpath': inpath,
         }
         for i, tag in enumerate(matches):
@@ -123,14 +144,10 @@ def markdown(cfgdir, # pylint: disable=too-many-locals, too-many-statements
                 matches[i] = sys.stdout.getvalue()
                 sys.stdout = sys.__stdout__ # pylint: disable=redefined-variable-type
 
-        # Clean up
-        fhl.close()
-
-         # Run Markdown
-        proc = subprocess.Popen(['pandoc', '--template',
-                                 cfgdir + '/template.html', '-H',
-                                 cfgdir + '/styles.css',
-                                 '-Vpath=' + dirpath] + opts,
+        # Run Markdown
+        proc = subprocess.Popen(['pandoc',
+                                 '--template', cfgdir + '/template.html'] + \
+                                opts,
                                 stdin=subprocess.PIPE, stdout=subprocess.PIPE)
 
         out, _ = proc.communicate(''.join(matches))

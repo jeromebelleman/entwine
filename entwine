@@ -84,7 +84,7 @@ def loadmd(path):
 
 
 def markdown(cfgdir, # pylint: disable=too-many-locals, too-many-statements, too-many-branches
-             tmplmtime, indir, outdir, dirpath, infile, outfile, author,
+             meta, tmplmtime, indir, outdir, dirpath, infile, outfile, author,
              force, dryrun):
     '''
     Run Markdown (and Python beforehand)
@@ -104,7 +104,17 @@ def markdown(cfgdir, # pylint: disable=too-many-locals, too-many-statements, too
         print "Writing %s/%s" % (os.getcwd(), outfile)
 
         # Load Markdown file
-        meta, body = loadmd(inpath)
+        filemeta, body = loadmd(inpath)
+        if filemeta:
+            for key in filemeta:
+                if key == 'options':
+                    for subkey in filemeta[key]:
+                        if key in meta:
+                            meta[key][subkey] = filemeta[key][subkey]
+                        else:
+                            meta[key] = filemeta[key]
+                else:
+                    meta[key] = filemeta[key]
 
         # Write more metadata
         if meta is None:
@@ -205,7 +215,7 @@ def main():
 
     # Configuration
     with open(args.cfgdir + '/entwine.yaml') as fhl:
-        config = yaml.load(fhl, Loader=yaml.BaseLoader)
+        config = yaml.load(fhl)
 
     # Get template modification time
     tmplmtime = os.stat(args.cfgdir + '/template.html').st_mtime
@@ -251,7 +261,7 @@ def main():
 
     # Sort paths deepest first to collect changed times, run Markdown on files
     for dirpath in sorted(dirpaths, key=lambda p: p.count('/'), reverse=True):
-        markdown(args.cfgdir, tmplmtime,
+        markdown(args.cfgdir, config['meta'], tmplmtime,
                  indir, outdir, dirpath,
                  config['formatter']['infile'],
                  config['formatter']['outfile'],

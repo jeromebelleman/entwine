@@ -22,7 +22,8 @@ import copy
 import yaml
 
 REMETA = re.compile(r'(?:---\n(?P<meta>.*?)\n---)?(?P<body>.*)', re.DOTALL)
-RETAG = re.compile(r'(<%.*?%>)', re.DOTALL)
+RETAG = re.compile(r'({{.*?}})', re.DOTALL)
+REINDENT = re.compile(r'^( *)')
 DATEFMT = '%d %b %Y'
 
 HEAD0 = r'<?xml version="1.0" encoding="UTF-8"?>'
@@ -47,11 +48,20 @@ def applytemplate(body, inpath):
         'loadmd': loadmd,
         'inpath': inpath,
     }
-    for i, tag in enumerate(matches):
-        if tag.startswith('<%'):
+    for i, chunk in enumerate(matches):
+        if chunk.startswith('{{'):
+            firstline = True
+            lines = []
+            for line in chunk[2:-2].splitlines():
+                if line:
+                    if firstline:
+                        indent = len(REINDENT.match(line).group(1))
+                        firstline = False
+                    lines.append(line[indent:])
+
             sys.stdout = StringIO.StringIO()
             try:
-                exec(tag[2:-2], globs) # pylint: disable=exec-used
+                exec('\n'.join(lines), globs) # pylint: disable=exec-used
             except Exception: # pylint: disable=broad-except
                 print >> sys.stderr, \
                     '\n'.join(traceback.format_exc().splitlines()[3:])

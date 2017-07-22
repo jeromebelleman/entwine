@@ -35,6 +35,32 @@ class MarkdownTemplate(string.Template):
 
     delimiter = '%%'
 
+def applytemplate(body, inpath):
+    '''
+    Apply Python block template
+    '''
+
+    matches = RETAG.split(body)
+    globs = {
+        '__params__': {},
+        'os': os,
+        'loadmd': loadmd,
+        'inpath': inpath,
+    }
+    for i, tag in enumerate(matches):
+        if tag.startswith('<%'):
+            sys.stdout = StringIO.StringIO()
+            try:
+                exec(tag[2:-2], globs) # pylint: disable=exec-used
+            except Exception: # pylint: disable=broad-except
+                print >> sys.stderr, \
+                    '\n'.join(traceback.format_exc().splitlines()[3:])
+            matches[i] = sys.stdout.getvalue()
+            sys.stdout = sys.__stdout__ # pylint: disable=redefined-variable-type
+
+    return ''.join(matches)
+
+
 def sitemaps(config, outdir, dryrun):
     '''
     Write site maps
@@ -100,7 +126,7 @@ def loadmd(path):
 
 
 def markdown(cfgdir, # pylint: disable=too-many-locals, too-many-statements, too-many-branches, too-many-arguments
-             meta, tmplmtime, indir, outdir, dirpath, infile, outfile, author,
+             meta, tmplmtime, indir, outdir, dirpath, infile, outfile,
              force, dryrun):
     '''
     Run Markdown (and Python beforehand)
@@ -151,64 +177,33 @@ def markdown(cfgdir, # pylint: disable=too-many-locals, too-many-statements, too
                     opts.append('--%s=%s' % (opt, meta['options'][opt]))
 
         # Run inline Python
-        matches = RETAG.split(body)
-        globs = {
-            '__params__': {},
-            'os': os,
-            'loadmd': loadmd,
-            'inpath': inpath,
-        }
-        for i, tag in enumerate(matches):
-            if tag.startswith('<%'):
-                sys.stdout = StringIO.StringIO()
-                try:
-                    exec(tag[2:-2], globs) # pylint: disable=exec-used
-                except Exception: # pylint: disable=broad-except
-                    print >> sys.stderr, \
-                        '\n'.join(traceback.format_exc().splitlines()[3:])
-                matches[i] = sys.stdout.getvalue()
-                sys.stdout = sys.__stdout__ # pylint: disable=redefined-variable-type
+        body = applytemplate(body, inpath)
 
         # Edit metadata for Pandoc's use of it in templates
         if 'date' in meta:
             meta['date'] = meta['date'].strftime(DATEFMT)
 
+        # Write Pandoc temporary template
+        with open(cfgdir + '/template.html') as fhlr:
+            with open(cfgdir + '/template.tmp.html', 'w') as fhlw:
+                fhlw.write(applytemplate(fhlr.read(), inpath))
+
         # Run Markdown
         proc = subprocess.Popen(['pandoc',
-                                 '--template', cfgdir + '/template.html'] + \
+                                 '--template',
+                                 cfgdir + '/template.tmp.html'] + \
                                 opts,
                                 stdin=subprocess.PIPE, stdout=subprocess.PIPE)
 
         out, _ = proc.communicate(yaml.dump(meta,
                                             default_flow_style=False,
                                             explicit_start=True,
-                                            explicit_end=True) + \
-                                  ''.join(matches))
-
-        # Get updated time
-        try:
-            upd = globs['__params__']['updated']
-        except KeyError:
-            mtime = os.stat(inpath).st_mtime
-            upd = datetime.date.fromtimestamp(mtime).strftime(DATEFMT)
-        if upd:
-            upd += ', ' + author
-        else:
-            upd = author
-
-        # Get breadcrumbs
-        breadcrumbs = '<a href="/">Home</a>'
-        dirnames = dirpath.split('/')[1:-1]
-        for i, dirname in enumerate(dirnames):
-            breadcrumbs += '/<a href="%s">%s</a>' % \
-                ((len(dirnames) - i) * '../', dirname)
+                                            explicit_end=True) + body)
 
         # Write HTML
         if not dryrun:
-            fhl = open(outfile, 'w')
-            template = MarkdownTemplate(out)
-            fhl.write(template.substitute(upd=upd, breadcrumbs=breadcrumbs))
-            fhl.close()
+            with open(outfile, 'w') as fhl:
+                fhl.write(out)
 
     # Step back
     os.chdir(olddirpath)
@@ -288,11 +283,13 @@ def main():
                  indir, outdir, dirpath,
                  config['formatter']['infile'],
                  config['formatter']['outfile'],
-                 config['formatter']['author'],
                  args.force, args.dryrun)
 
     # Write site maps
     sitemaps(config, outdir, args.dryrun)
+
+    # Remove Pandoc temporary template
+    os.remove(args.cfgdir + '/template.tmp.html')
 
 if __name__ == '__main__':
     sys.exit(main())

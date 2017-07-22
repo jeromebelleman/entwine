@@ -18,6 +18,7 @@ import StringIO
 import datetime
 import traceback
 import shutil
+import copy
 import yaml
 
 REMETA = re.compile(r'(?:---\n(?P<meta>.*?)\n---)?(?P<body>.*)', re.DOTALL)
@@ -70,6 +71,16 @@ def latest():
 
     return upd
 
+def parsedate(date):
+    '''
+    Parse date
+    '''
+
+    proc = subprocess.Popen(['date', '-d', str(date), '+%s'],
+                            stdout=subprocess.PIPE)
+    return datetime.datetime.fromtimestamp(float(proc.communicate()[0]))
+
+
 def loadmd(path):
     '''
     Load Markdown file, returning match with metadata and body
@@ -78,12 +89,17 @@ def loadmd(path):
     with open(path) as fhl:
         match = REMETA.match(fhl.read())
         meta = match.group('meta')
+
         if meta:
             meta = yaml.load(meta)
+
+            if 'date' in meta:
+                meta['date'] = parsedate(meta['date'])
+
         return meta, match.group('body')
 
 
-def markdown(cfgdir, # pylint: disable=too-many-locals, too-many-statements, too-many-branches
+def markdown(cfgdir, # pylint: disable=too-many-locals, too-many-statements, too-many-branches, too-many-arguments
              meta, tmplmtime, indir, outdir, dirpath, infile, outfile, author,
              force, dryrun):
     '''
@@ -105,6 +121,8 @@ def markdown(cfgdir, # pylint: disable=too-many-locals, too-many-statements, too
 
         # Load Markdown file
         filemeta, body = loadmd(inpath)
+
+        # Override defaults in metadata
         if filemeta:
             for key in filemeta:
                 if key == 'options':
@@ -133,10 +151,7 @@ def markdown(cfgdir, # pylint: disable=too-many-locals, too-many-statements, too
                     opts.append('--%s=%s' % (opt, meta['options'][opt]))
 
         # Run inline Python
-        matches = RETAG.split(yaml.dump(meta,
-                                        default_flow_style=False,
-                                        explicit_start=True,
-                                        explicit_end=True) + body)
+        matches = RETAG.split(body)
         globs = {
             '__params__': {},
             'os': os,
@@ -154,13 +169,21 @@ def markdown(cfgdir, # pylint: disable=too-many-locals, too-many-statements, too
                 matches[i] = sys.stdout.getvalue()
                 sys.stdout = sys.__stdout__ # pylint: disable=redefined-variable-type
 
+        # Edit metadata for Pandoc's use of it in templates
+        if 'date' in meta:
+            meta['date'] = meta['date'].strftime(DATEFMT)
+
         # Run Markdown
         proc = subprocess.Popen(['pandoc',
                                  '--template', cfgdir + '/template.html'] + \
                                 opts,
                                 stdin=subprocess.PIPE, stdout=subprocess.PIPE)
 
-        out, _ = proc.communicate(''.join(matches))
+        out, _ = proc.communicate(yaml.dump(meta,
+                                            default_flow_style=False,
+                                            explicit_start=True,
+                                            explicit_end=True) + \
+                                  ''.join(matches))
 
         # Get updated time
         try:
@@ -261,7 +284,7 @@ def main():
 
     # Sort paths deepest first to collect changed times, run Markdown on files
     for dirpath in sorted(dirpaths, key=lambda p: p.count('/'), reverse=True):
-        markdown(args.cfgdir, config['meta'], tmplmtime,
+        markdown(args.cfgdir, copy.deepcopy(config['meta']), tmplmtime,
                  indir, outdir, dirpath,
                  config['formatter']['infile'],
                  config['formatter']['outfile'],

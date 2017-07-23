@@ -12,7 +12,6 @@ sys.setdefaultencoding('UTF8')
 import os
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import subprocess
-import string
 import re
 import StringIO
 import datetime
@@ -28,13 +27,6 @@ DATEFMT = '%d %b %Y'
 
 HEAD0 = r'<?xml version="1.0" encoding="UTF-8"?>'
 HEAD1 = r'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
-
-class MarkdownTemplate(string.Template):
-    '''
-    Markdown template
-    '''
-
-    delimiter = '%%'
 
 def applytemplate(body, inpath):
     '''
@@ -69,7 +61,6 @@ def applytemplate(body, inpath):
             sys.stdout = sys.__stdout__ # pylint: disable=redefined-variable-type
 
     return ''.join(matches)
-
 
 def sitemaps(config, outdir, dryrun):
     '''
@@ -116,7 +107,6 @@ def parsedate(date):
                             stdout=subprocess.PIPE)
     return datetime.datetime.fromtimestamp(float(proc.communicate()[0]))
 
-
 def loadmd(path):
     '''
     Load Markdown file, returning match with metadata and body
@@ -133,7 +123,6 @@ def loadmd(path):
                 meta['date'] = parsedate(meta['date'])
 
         return meta, match.group('body')
-
 
 def markdown(cfgdir, # pylint: disable=too-many-locals, too-many-statements, too-many-branches, too-many-arguments
              meta, tmplmtime, indir, outdir, dirpath, infile, outfile,
@@ -218,6 +207,13 @@ def markdown(cfgdir, # pylint: disable=too-many-locals, too-many-statements, too
     # Step back
     os.chdir(olddirpath)
 
+def abspath(path):
+    '''
+    Return absolute path from user-expanded path
+    '''
+
+    return os.path.abspath(os.path.expanduser(path))
+
 def main():
     '''
     Main loop
@@ -227,8 +223,7 @@ def main():
     parser = ArgumentParser(description="generate web site",
                             formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument('--cfgdir', '-c', help="configuration directory",
-                        default='~/.entwine',
-                        type=lambda x: os.path.abspath(os.path.expanduser(x)))
+                        default='~/.entwine', type=abspath)
     parser.add_argument('--indir', '-i', help="input page directory",
                         type=os.path.expanduser)
     parser.add_argument('--outdir', '-o', help="output page directory",
@@ -251,10 +246,10 @@ def main():
     # Set input and output directories
     indir = args.indir \
         if args.indir \
-        else os.path.abspath(os.path.expanduser(config['formatter']['indir']))
+        else abspath(config['directories']['in'])
     outdir = args.outdir \
         if args.outdir \
-        else os.path.abspath(os.path.expanduser(config['formatter']['outdir']))
+        else abspath(config['directories']['out'])
 
     # Inventory paths to sort them later on and make files and directories
     # which don't need to bear time changes.
@@ -275,7 +270,7 @@ def main():
 
         # Inventory templated files and copy static files
         for filename in filenames:
-            if filename == config['formatter']['infile']:
+            if filename == config['files']['in']:
                 dirpaths.append(os.getcwd())
             else:
                 inpath = dirpath + '/' + filename
@@ -291,8 +286,7 @@ def main():
     for dirpath in sorted(dirpaths, key=lambda p: p.count('/'), reverse=True):
         markdown(args.cfgdir, copy.deepcopy(config['meta']), tmplmtime,
                  indir, outdir, dirpath,
-                 config['formatter']['infile'],
-                 config['formatter']['outfile'],
+                 config['files']['in'], config['files']['out'],
                  args.force, args.dryrun)
 
     # Write site maps

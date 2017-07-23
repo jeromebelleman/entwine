@@ -29,7 +29,7 @@ DATEFMT = '%d %b %Y'
 HEAD0 = r'<?xml version="1.0" encoding="UTF-8"?>'
 HEAD1 = r'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
 
-def applytemplate(body, inpath):
+def applytemplate(body, inpath, meta):
     '''
     Apply Python block template
     '''
@@ -40,6 +40,7 @@ def applytemplate(body, inpath):
         'os': os,
         'loadmd': loadmd,
         'inpath': inpath,
+        'meta': meta,
     }
     for i, chunk in enumerate(matches):
         if chunk.startswith('{{'):
@@ -197,7 +198,7 @@ def markdown(cfgdir, # pylint: disable=too-many-locals, too-many-statements, too
                     opts.append('--%s=%s' % (opt, meta['options'][opt]))
 
         # Run inline Python
-        body = applytemplate(body, inpath)
+        body = applytemplate(body, inpath, meta)
 
         # Edit metadata for Pandoc's use of it in templates
         if 'date' in meta:
@@ -206,7 +207,7 @@ def markdown(cfgdir, # pylint: disable=too-many-locals, too-many-statements, too
         # Write Pandoc temporary template
         with open(cfgdir + '/template.html') as fhlr:
             with open(cfgdir + '/template.tmp.html', 'w') as fhlw:
-                fhlw.write(applytemplate(fhlr.read(), inpath))
+                fhlw.write(applytemplate(fhlr.read(), inpath, meta))
 
         # Run Markdown
         proc = subprocess.Popen(['pandoc',

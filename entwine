@@ -98,7 +98,8 @@ def styles(config, cfgdir, dirs, dryrun):
         inpath = cfgdir + '/' + config['styles']['in']
         outpath = config['styles']['out']
 
-        if entwine.getmtime(inpath) > entwine.getmtime(outpath):
+        if not os.path.lexists(outpath) or \
+            entwine.getmtime(inpath) > entwine.getmtime(outpath):
             print "Writing %s/%s" % (os.getcwd(), outpath)
             if not dryrun:
                 subprocess.call(['sass', inpath, outpath])

@@ -85,6 +85,23 @@ def sitemaps(config, outdir, dryrun):
 
     os.chdir(olddirpath)
 
+def styles(config, cfgdir, dirs, dryrun):
+    '''
+    Write style sheet
+    '''
+
+    if 'styles' in config:
+        olddirpath = os.getcwd()
+        os.chdir(dirs['out'])
+
+        print "Writing %s/%s" % (os.getcwd(), config['styles']['out'])
+        if not dryrun:
+            subprocess.call(['sass',
+                             cfgdir + '/' + config['styles']['in'],
+                             config['styles']['out']])
+
+        os.chdir(olddirpath)
+
 def latest():
     '''
     Get modification time for last-updated file
@@ -214,7 +231,7 @@ def abspath(path):
 
     return os.path.abspath(os.path.expanduser(path))
 
-def main():
+def main(): # pylint: disable=too-many-locals
     '''
     Main loop
     '''
@@ -239,17 +256,14 @@ def main():
     # Configuration
     with open(args.cfgdir + '/entwine.yaml') as fhl:
         config = yaml.load(fhl)
+    dirs = config['directories']
 
     # Get template modification time
     tmplmtime = os.stat(args.cfgdir + '/template.html').st_mtime
 
     # Set input and output directories
-    indir = args.indir \
-        if args.indir \
-        else abspath(config['directories']['in'])
-    outdir = args.outdir \
-        if args.outdir \
-        else abspath(config['directories']['out'])
+    indir = args.indir if args.indir else abspath(dirs['in'])
+    outdir = args.outdir if args.outdir else abspath(dirs['out'])
 
     # Inventory paths to sort them later on and make files and directories
     # which don't need to bear time changes.
@@ -289,8 +303,9 @@ def main():
                  config['files']['in'], config['files']['out'],
                  args.force, args.dryrun)
 
-    # Write site maps
+    # Write supporting files
     sitemaps(config, outdir, args.dryrun)
+    styles(config, args.cfgdir, dirs, args.dryrun)
 
     # Remove Pandoc temporary template
     os.remove(args.cfgdir + '/template.tmp.html')

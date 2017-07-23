@@ -265,6 +265,9 @@ def main(): # pylint: disable=too-many-locals
     indir = args.indir if args.indir else abspath(dirs['in'])
     outdir = args.outdir if args.outdir else abspath(dirs['out'])
 
+    # Compile exclude regular expression
+    exclude = re.compile(config['files']['exclude'])
+
     # Inventory paths to sort them later on and make files and directories
     # which don't need to bear time changes.
     # It's fine to start at root because directories and static files don't
@@ -288,8 +291,10 @@ def main(): # pylint: disable=too-many-locals
                 dirpaths.append(os.getcwd())
             else:
                 inpath = dirpath + '/' + filename
-                if not os.path.lexists(filename) or args.force or \
-                    os.stat(inpath).st_mtime > os.stat(filename).st_mtime:
+                if not exclude.match(filename) and \
+                    (not os.path.lexists(filename) or args.force or \
+                    os.stat(inpath).st_mtime > os.stat(filename).st_mtime):
+
                     print "Copying to %s/%s" % (os.getcwd(), filename)
                     if not args.dryrun:
                         shutil.copy2(inpath, '.')

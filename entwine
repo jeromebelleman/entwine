@@ -106,13 +106,13 @@ def styles(config, cfgdir, dirs, dryrun):
 
         os.chdir(olddirpath)
 
-def latest():
+def getlatest(path):
     '''
-    Get modification time for last-updated file
+    Get modification time for last-updated file or directory
     '''
 
     upd = 0
-    for dirpath, dirnames, filenames in os.walk('.'):
+    for dirpath, dirnames, filenames in os.walk(path):
         for filename in filenames + dirnames:
             mtime = entwine.getmtime(dirpath + '/' + filename)
             upd = mtime if mtime > upd else upd
@@ -160,7 +160,7 @@ def markdown(cfgdir, # pylint: disable=too-many-locals, too-many-statements, too
 
     # Check last change in this subtree
     if not os.path.isfile(outfile) or force or \
-        latest() > entwine.getmtime(outfile) or \
+        getlatest(indir + dirpath) > entwine.getmtime(outfile) or \
         tmplmtime > entwine.getmtime(outfile):
 
         print "Writing %s/%s" % (os.getcwd(), outfile)
@@ -301,7 +301,7 @@ def main(): # pylint: disable=too-many-locals
 
                     print "Copying to %s/%s" % (os.getcwd(), filename)
                     if not args.dryrun:
-                        shutil.copy2(inpath, '.')
+                        shutil.copy(inpath, '.')
 
         os.chdir(olddirpath)
 

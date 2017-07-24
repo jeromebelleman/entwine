@@ -29,7 +29,7 @@ DATEFMT = '%d %b %Y'
 HEAD0 = r'<?xml version="1.0" encoding="UTF-8"?>'
 HEAD1 = r'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
 
-def applytemplate(body, outpath, meta):
+def applytemplate(body, outdir, meta):
     '''
     Apply Python block template
     '''
@@ -39,7 +39,7 @@ def applytemplate(body, outpath, meta):
         '__params__': {},
         'os': os,
         'loadmd': loadmd,
-        'outpath': outpath,
+        'outdir': outdir,
         'meta': meta,
     }
     for i, chunk in enumerate(matches):
@@ -147,7 +147,8 @@ def loadmd(path):
         return meta, match.group('body')
 
 def markdown(cfgdir, # pylint: disable=too-many-locals, too-many-statements, too-many-branches, too-many-arguments
-             meta, tmplmtime, indir, outdir, dirpath, infile, outfile,
+             meta, tmplmtime, inrootdir, outrootdir, indir,
+             infilename, outfilename,
              force, dryrun):
     '''
     Run Markdown (and Python beforehand)
@@ -155,19 +156,20 @@ def markdown(cfgdir, # pylint: disable=too-many-locals, too-many-statements, too
 
     # Move to input directory
     olddirpath = os.getcwd()
-    os.chdir(dirpath)
-    dirpath = dirpath[len(indir):]
-    outpath = outdir + dirpath + '/' + outfile
+    os.chdir(indir)
+    dirpath = indir[len(inrootdir):]
+    outdir = outrootdir + dirpath
+    outfile = outdir + '/' + outfilename
 
     # Check last change in this subtree
     if not os.path.isfile(outfile) or force or \
-        getlatest(indir + dirpath) > entwine.getmtime(outfile) or \
+        getlatest('.') > entwine.getmtime(outfile) or \
         tmplmtime > entwine.getmtime(outfile):
 
-        print "Writing %s/%s" % (os.getcwd(), outfile)
+        print "Writing " + outfile
 
         # Load Markdown file
-        filemeta, body = loadmd(infile)
+        filemeta, body = loadmd(infilename)
 
         # Override defaults in metadata
         if filemeta:
@@ -198,7 +200,7 @@ def markdown(cfgdir, # pylint: disable=too-many-locals, too-many-statements, too
                     opts.append('--%s=%s' % (opt, meta['options'][opt]))
 
         # Run inline Python
-        body = applytemplate(body, outpath, meta)
+        body = applytemplate(body, outdir, meta)
 
         # Edit metadata for Pandoc's use of it in templates
         if 'date' in meta:
@@ -207,7 +209,7 @@ def markdown(cfgdir, # pylint: disable=too-many-locals, too-many-statements, too
         # Write Pandoc temporary template
         with open(cfgdir + '/template.html') as fhlr:
             with open(cfgdir + '/template.tmp.html', 'w') as fhlw:
-                fhlw.write(applytemplate(fhlr.read(), outpath, meta))
+                fhlw.write(applytemplate(fhlr.read(), outdir, meta))
 
         # Run Markdown
         proc = subprocess.Popen(['pandoc',
@@ -223,7 +225,7 @@ def markdown(cfgdir, # pylint: disable=too-many-locals, too-many-statements, too
 
         # Write HTML
         if not dryrun:
-            with open(outpath, 'w') as fhl:
+            with open(outfile, 'w') as fhl:
                 fhl.write(out)
 
     # Step back
@@ -267,8 +269,8 @@ def main(): # pylint: disable=too-many-locals
     tmplmtime = entwine.getmtime(args.cfgdir + '/template.html')
 
     # Set input and output directories
-    indir = args.indir if args.indir else abspath(dirs['in'])
-    outdir = args.outdir if args.outdir else abspath(dirs['out'])
+    inrootdir = args.indir if args.indir else abspath(dirs['in'])
+    outrootdir = args.outdir if args.outdir else abspath(dirs['out'])
 
     # Compile exclude regular expression
     exclude = re.compile(config['files']['exclude'])
@@ -278,12 +280,12 @@ def main(): # pylint: disable=too-many-locals
     # It's fine to start at root because directories and static files don't
     # need to bear time changes, only templated files do.
     dirpaths = []
-    for dirpath, _, filenames in os.walk(indir):
+    for indir, _, filenames in os.walk(inrootdir):
 
         olddirpath = os.getcwd()
-        os.chdir(dirpath)
+        os.chdir(indir)
 
-        outpath = outdir + dirpath[len(indir):]
+        outpath = outrootdir + indir[len(inrootdir):]
 
         # Make directories
         if not os.path.lexists(outpath):
@@ -308,14 +310,14 @@ def main(): # pylint: disable=too-many-locals
         os.chdir(olddirpath)
 
     # Sort paths deepest first to collect changed times, run Markdown on files
-    for dirpath in sorted(dirpaths, key=lambda p: p.count('/'), reverse=True):
+    for indir in sorted(dirpaths, key=lambda p: p.count('/'), reverse=True):
         markdown(args.cfgdir, copy.deepcopy(config['meta']), tmplmtime,
-                 indir, outdir, dirpath,
+                 inrootdir, outrootdir, indir,
                  config['files']['in'], config['files']['out'],
                  args.force, args.dryrun)
 
     # Write supporting files
-    sitemaps(config, outdir, args.dryrun)
+    sitemaps(config, outrootdir, args.dryrun)
     styles(config, args.cfgdir, dirs, args.dryrun)
 
     # Remove Pandoc temporary template

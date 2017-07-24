@@ -29,7 +29,7 @@ DATEFMT = '%d %b %Y'
 HEAD0 = r'<?xml version="1.0" encoding="UTF-8"?>'
 HEAD1 = r'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
 
-def applytemplate(body, inpath, meta):
+def applytemplate(body, outpath, meta):
     '''
     Apply Python block template
     '''
@@ -39,7 +39,7 @@ def applytemplate(body, inpath, meta):
         '__params__': {},
         'os': os,
         'loadmd': loadmd,
-        'inpath': inpath,
+        'outpath': outpath,
         'meta': meta,
     }
     for i, chunk in enumerate(matches):
@@ -153,11 +153,11 @@ def markdown(cfgdir, # pylint: disable=too-many-locals, too-many-statements, too
     Run Markdown (and Python beforehand)
     '''
 
-    # Move to output directory
+    # Move to input directory
     olddirpath = os.getcwd()
     os.chdir(dirpath)
-    dirpath = dirpath[len(outdir):]
-    inpath = indir + dirpath + '/' + infile
+    dirpath = dirpath[len(indir):]
+    outpath = outdir + dirpath + '/' + outfile
 
     # Check last change in this subtree
     if not os.path.isfile(outfile) or force or \
@@ -167,7 +167,7 @@ def markdown(cfgdir, # pylint: disable=too-many-locals, too-many-statements, too
         print "Writing %s/%s" % (os.getcwd(), outfile)
 
         # Load Markdown file
-        filemeta, body = loadmd(inpath)
+        filemeta, body = loadmd(infile)
 
         # Override defaults in metadata
         if filemeta:
@@ -198,7 +198,7 @@ def markdown(cfgdir, # pylint: disable=too-many-locals, too-many-statements, too
                     opts.append('--%s=%s' % (opt, meta['options'][opt]))
 
         # Run inline Python
-        body = applytemplate(body, inpath, meta)
+        body = applytemplate(body, outpath, meta)
 
         # Edit metadata for Pandoc's use of it in templates
         if 'date' in meta:
@@ -207,7 +207,7 @@ def markdown(cfgdir, # pylint: disable=too-many-locals, too-many-statements, too
         # Write Pandoc temporary template
         with open(cfgdir + '/template.html') as fhlr:
             with open(cfgdir + '/template.tmp.html', 'w') as fhlw:
-                fhlw.write(applytemplate(fhlr.read(), inpath, meta))
+                fhlw.write(applytemplate(fhlr.read(), outpath, meta))
 
         # Run Markdown
         proc = subprocess.Popen(['pandoc',
@@ -223,7 +223,7 @@ def markdown(cfgdir, # pylint: disable=too-many-locals, too-many-statements, too
 
         # Write HTML
         if not dryrun:
-            with open(outfile, 'w') as fhl:
+            with open(outpath, 'w') as fhl:
                 fhl.write(out)
 
     # Step back
@@ -280,6 +280,9 @@ def main(): # pylint: disable=too-many-locals
     dirpaths = []
     for dirpath, _, filenames in os.walk(indir):
 
+        olddirpath = os.getcwd()
+        os.chdir(dirpath)
+
         outpath = outdir + dirpath[len(indir):]
 
         # Make directories
@@ -287,22 +290,20 @@ def main(): # pylint: disable=too-many-locals
             print "Making %s/" % outpath
             os.mkdir(outpath)
 
-        olddirpath = os.getcwd()
-        os.chdir(outpath)
-
         # Inventory templated files and copy static files
         for filename in filenames:
             if filename == config['files']['in']:
                 dirpaths.append(os.getcwd())
             else:
-                inpath = dirpath + '/' + filename
                 if not exclude.match(filename) and \
-                    (not os.path.lexists(filename) or args.force or \
-                    entwine.getmtime(inpath) > entwine.getmtime(filename)):
+                    (not os.path.lexists(outpath + '/' + filename) or \
+                    args.force or \
+                    entwine.getmtime(filename) > \
+                        entwine.getmtime(outpath + '/' + filename)):
 
-                    print "Copying to %s/%s" % (os.getcwd(), filename)
+                    print "Copying to %s/%s" % (outpath, filename)
                     if not args.dryrun:
-                        shutil.copy(inpath, '.')
+                        shutil.copy(filename, outpath)
 
         os.chdir(olddirpath)
 

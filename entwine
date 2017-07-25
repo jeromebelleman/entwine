@@ -125,9 +125,13 @@ def parsedate(date):
     Parse date
     '''
 
-    proc = subprocess.Popen(['date', '-d', str(date), '+%s'],
-                            stdout=subprocess.PIPE)
-    return datetime.datetime.fromtimestamp(float(proc.communicate()[0]))
+    with open(os.devnull, 'w') as fhl:
+        proc = subprocess.Popen(['date', '-d', str(date), '+%s'],
+                                stdout=subprocess.PIPE, stderr=fhl)
+        try:
+            return datetime.datetime.fromtimestamp(float(proc.communicate()[0]))
+        except ValueError:
+            return date
 
 def loadmd(path):
     '''
@@ -204,7 +208,10 @@ def markdown(cfgdir, # pylint: disable=too-many-locals, too-many-statements, too
 
         # Edit metadata for Pandoc's use of it in templates
         if 'date' in meta:
-            meta['date'] = meta['date'].strftime(DATEFMT)
+            try:
+                meta['date'] = meta['date'].strftime(DATEFMT)
+            except AttributeError:
+                pass
 
         # Write Pandoc temporary template
         with open(cfgdir + '/template.html') as fhlr:

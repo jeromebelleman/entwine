@@ -29,19 +29,12 @@ DATEFMT = '%d %b %Y'
 HEAD0 = r'<?xml version="1.0" encoding="UTF-8"?>'
 HEAD1 = r'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
 
-def applytemplate(body, outdir, meta):
+def applytemplate(globs, body):
     '''
     Apply Python block template
     '''
 
     matches = RETAG.split(body)
-    globs = {
-        '__params__': {},
-        'os': os,
-        'loadmd': loadmd,
-        'outdir': outdir,
-        'meta': meta,
-    }
     for i, chunk in enumerate(matches):
         if chunk.startswith('{{'):
             firstline = True
@@ -151,7 +144,7 @@ def loadmd(path):
         return meta, match.group('body')
 
 def markdown(cfgdir, # pylint: disable=too-many-locals, too-many-statements, too-many-branches, too-many-arguments
-             meta, tmplmtime, inrootdir, outrootdir, indir,
+             globs, meta, tmplmtime, inrootdir, outrootdir, indir,
              infilename, outfilename,
              force, dryrun):
     '''
@@ -203,8 +196,12 @@ def markdown(cfgdir, # pylint: disable=too-many-locals, too-many-statements, too
                 else:
                     opts.append('--%s=%s' % (opt, meta['options'][opt]))
 
+        # Set more globals
+        globs['outdir'] = outdir
+        globs['meta'] = meta
+
         # Run inline Python
-        body = applytemplate(body, outdir, meta)
+        body = applytemplate(globs, body)
 
         # Edit metadata for Pandoc's use of it in templates
         if 'date' in meta:
@@ -216,7 +213,7 @@ def markdown(cfgdir, # pylint: disable=too-many-locals, too-many-statements, too
         # Write Pandoc temporary template
         with open(cfgdir + '/template.html') as fhlr:
             with open(cfgdir + '/template.tmp.html', 'w') as fhlw:
-                fhlw.write(applytemplate(fhlr.read(), outdir, meta))
+                fhlw.write(applytemplate(globs, fhlr.read()))
 
         # Run Markdown
         proc = subprocess.Popen(['pandoc',
@@ -272,6 +269,19 @@ def main(): # pylint: disable=too-many-locals
         config = yaml.load(fhl)
     dirs = config['directories']
 
+    # Load globals
+    globs = {
+        '__params__': {},
+        'os': os,
+        'loadmd': loadmd,
+    }
+    if os.path.exists(args.cfgdir + '/modules'):
+        sys.path.append(args.cfgdir + '/modules')
+        for modulefile in os.listdir(args.cfgdir + '/modules'):
+            if modulefile.endswith('.py'):
+                module = __import__(modulefile[:-3])
+                globs[modulefile[:-3]] = module
+
     # Get template modification time
     tmplmtime = entwine.getmtime(args.cfgdir + '/template.html')
 
@@ -318,7 +328,7 @@ def main(): # pylint: disable=too-many-locals
 
     # Sort paths deepest first to collect changed times, run Markdown on files
     for indir in sorted(dirpaths, key=lambda p: p.count('/'), reverse=True):
-        markdown(args.cfgdir, copy.deepcopy(config['meta']), tmplmtime,
+        markdown(args.cfgdir, globs, copy.deepcopy(config['meta']), tmplmtime,
                  inrootdir, outrootdir, indir,
                  config['files']['in'], config['files']['out'],
                  args.force, args.dryrun)

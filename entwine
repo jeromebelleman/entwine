@@ -274,6 +274,7 @@ def main(): # pylint: disable=too-many-locals
         '__params__': {},
         'os': os,
         'loadmd': loadmd,
+        'parsedate': parsedate,
     }
     if os.path.exists(args.cfgdir + '/modules'):
         sys.path.append(args.cfgdir + '/modules')

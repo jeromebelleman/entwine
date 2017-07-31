@@ -14,14 +14,12 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import subprocess
 import re
 import StringIO
-import datetime
 import traceback
 import shutil
 import copy
 import yaml
-import entwine
+import entwinelib
 
-REMETA = re.compile(r'(?:---\n(?P<meta>.*?)\n---)?(?P<body>.*)', re.DOTALL)
 RETAG = re.compile(r'({{.*?}})', re.DOTALL)
 REINDENT = re.compile(r'^( *)')
 DATEFMT = '%d %b %Y'
@@ -93,7 +91,7 @@ def styles(config, cfgdir, dirs, dryrun):
         outpath = config['styles']['out']
 
         if not os.path.lexists(outpath) or \
-            entwine.getmtime(inpath) > entwine.getmtime(outpath):
+            entwinelib.getmtime(inpath) > entwinelib.getmtime(outpath):
             print "Writing %s/%s" % (os.getcwd(), outpath)
             if not dryrun:
                 subprocess.call(['sass', inpath, outpath])
@@ -108,40 +106,10 @@ def getlatest(path):
     upd = 0
     for dirpath, dirnames, filenames in os.walk(path):
         for filename in filenames + dirnames:
-            mtime = entwine.getmtime(dirpath + '/' + filename)
+            mtime = entwinelib.getmtime(dirpath + '/' + filename)
             upd = mtime if mtime > upd else upd
 
     return upd
-
-def parsedate(date):
-    '''
-    Parse date
-    '''
-
-    with open(os.devnull, 'w') as fhl:
-        proc = subprocess.Popen(['date', '-d', str(date), '+%s'],
-                                stdout=subprocess.PIPE, stderr=fhl)
-        try:
-            return datetime.datetime.fromtimestamp(float(proc.communicate()[0]))
-        except ValueError:
-            return date
-
-def loadmd(path):
-    '''
-    Load Markdown file, returning match with metadata and body
-    '''
-
-    with open(path) as fhl:
-        match = REMETA.match(fhl.read())
-        meta = match.group('meta')
-
-        if meta:
-            meta = yaml.load(meta)
-
-            if 'date' in meta:
-                meta['date'] = parsedate(meta['date'])
-
-        return meta, match.group('body')
 
 def markdown(cfgdir, # pylint: disable=too-many-locals, too-many-statements, too-many-branches, too-many-arguments
              globs, meta, tmplmtime, inrootdir, outrootdir, indir,
@@ -160,13 +128,13 @@ def markdown(cfgdir, # pylint: disable=too-many-locals, too-many-statements, too
 
     # Check last change in this subtree
     if not os.path.isfile(outfile) or force or \
-        getlatest('.') > entwine.getmtime(outfile) or \
-        tmplmtime > entwine.getmtime(outfile):
+        getlatest('.') > entwinelib.getmtime(outfile) or \
+        tmplmtime > entwinelib.getmtime(outfile):
 
         print "Writing " + outfile
 
         # Load Markdown file
-        filemeta, body = loadmd(infilename)
+        filemeta, body = entwinelib.loadmd(infilename)
 
         # Override defaults in metadata
         if filemeta:
@@ -273,8 +241,6 @@ def main(): # pylint: disable=too-many-locals
     globs = {
         '__params__': {},
         'os': os,
-        'loadmd': loadmd,
-        'parsedate': parsedate,
     }
     if os.path.exists(args.cfgdir + '/modules'):
         sys.path.append(args.cfgdir + '/modules')
@@ -284,7 +250,7 @@ def main(): # pylint: disable=too-many-locals
                 globs[modulefile[:-3]] = module
 
     # Get template modification time
-    tmplmtime = entwine.getmtime(args.cfgdir + '/template.html')
+    tmplmtime = entwinelib.getmtime(args.cfgdir + '/template.html')
 
     # Set input and output directories
     inrootdir = args.indir if args.indir else abspath(dirs['in'])
@@ -318,8 +284,8 @@ def main(): # pylint: disable=too-many-locals
                 if not exclude.match(filename) and \
                     (not os.path.lexists(outpath + '/' + filename) or \
                     args.force or \
-                    entwine.getmtime(filename) > \
-                        entwine.getmtime(outpath + '/' + filename)):
+                    entwinelib.getmtime(filename) > \
+                        entwinelib.getmtime(outpath + '/' + filename)):
 
                     print "Copying to %s/%s" % (outpath, filename)
                     if not args.dryrun:

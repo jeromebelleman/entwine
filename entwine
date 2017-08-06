@@ -22,7 +22,7 @@ import entwinelib
 
 RETAG = re.compile(r'({{.*?}})', re.DOTALL)
 REINDENT = re.compile(r'^( *)')
-DATEFMT = '%d %b %Y'
+DATEFMT = '%-d %b %Y'
 
 HEAD0 = r'<?xml version="1.0" encoding="UTF-8"?>'
 HEAD1 = r'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
@@ -184,7 +184,7 @@ def markdown(cfgdir, # pylint: disable=too-many-locals, too-many-statements, too
                 fhlw.write(applytemplate(globs, fhlr.read()))
 
         # Run Markdown
-        proc = subprocess.Popen(['pandoc',
+        proc = subprocess.Popen(['pandoc', '-thtml5',
                                  '--template',
                                  cfgdir + '/template.tmp.html'] + \
                                 opts,

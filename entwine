@@ -193,7 +193,8 @@ def markdown(cfgdir, # pylint: disable=too-many-locals, too-many-statements, too
         out, _ = proc.communicate(yaml.dump(meta,
                                             default_flow_style=False,
                                             explicit_start=True,
-                                            explicit_end=True) + body)
+                                            explicit_end=True,
+                                            width=1024) + body)
 
         # Write HTML
         if not dryrun:

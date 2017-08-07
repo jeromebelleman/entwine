@@ -183,18 +183,22 @@ def markdown(cfgdir, # pylint: disable=too-many-locals, too-many-statements, too
             with open(cfgdir + '/template.tmp.html', 'w') as fhlw:
                 fhlw.write(applytemplate(globs, fhlr.read()))
 
+        # Write Pandoc temporary input file because using stdin is unreliable
+        with open(cfgdir + '/input.tmp.md', 'w') as fhl:
+            fhl.write(yaml.dump(meta,
+                                default_flow_style=False,
+                                explicit_start=True,
+                                explicit_end=True,
+                                width=1024) + body)
+
         # Run Markdown
         proc = subprocess.Popen(['pandoc', '-thtml5',
                                  '--template',
                                  cfgdir + '/template.tmp.html'] + \
-                                opts,
-                                stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+                                opts + [cfgdir + '/input.tmp.md'],
+                                stdout=subprocess.PIPE)
 
-        out, _ = proc.communicate(yaml.dump(meta,
-                                            default_flow_style=False,
-                                            explicit_start=True,
-                                            explicit_end=True,
-                                            width=1024) + body)
+        out, _ = proc.communicate()
 
         # Write HTML
         if not dryrun:
@@ -306,11 +310,12 @@ def main(): # pylint: disable=too-many-locals
     sitemaps(config, outrootdir, args.dryrun)
     styles(config, args.cfgdir, dirs, args.dryrun)
 
-    # Remove Pandoc temporary template
-    try:
-        os.remove(args.cfgdir + '/template.tmp.html')
-    except OSError:
-        pass
+    # Remove Pandoc temporary files
+    for filename in '/template.tmp.html', '/input.tmp.md':
+        try:
+            os.remove(args.cfgdir + filename)
+        except OSError:
+            pass
 
 if __name__ == '__main__':
     sys.exit(main())

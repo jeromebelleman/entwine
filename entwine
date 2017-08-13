@@ -55,7 +55,7 @@ def applytemplate(globs, body):
 
     return ''.join(matches)
 
-def sitemaps(config, outdir, dryrun):
+def sitemaps(config, outdir, inrootdir, dirpaths, dryrun):
     '''
     Write site maps
     '''
@@ -74,9 +74,19 @@ def sitemaps(config, outdir, dryrun):
                 for url in config['sitemaps']['urls']:
                     print >> fhl, r'  <url><loc>%s/%s</loc></url>' % \
                         (config['sitemaps']['files'][filename], url)
+                    try:
+                        dirpaths.remove(inrootdir + '/' + url)
+                    except ValueError:
+                        print "%s in sitemap doesn't exist" % url
                 print >> fhl, r'</urlset>'
 
     os.chdir(olddirpath)
+
+    # Print paths omitted from sitemap
+    for dirpath in dirpaths:
+        if dirpath[len(inrootdir):] and \
+            dirpath[len(inrootdir) + 1:] not in config['sitemaps']['exclude']:
+            print "%s is missing from sitemap" % dirpath[len(inrootdir):]
 
 def styles(config, cfgdir, dirs, dryrun):
     '''
@@ -307,7 +317,7 @@ def main(): # pylint: disable=too-many-locals
                  args.force, args.dryrun)
 
     # Write supporting files
-    sitemaps(config, outrootdir, args.dryrun)
+    sitemaps(config, outrootdir, inrootdir, dirpaths, args.dryrun)
     styles(config, args.cfgdir, dirs, args.dryrun)
 
     # Remove Pandoc temporary files

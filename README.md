@@ -8,57 +8,48 @@ See **entwine -h**.
 
 # PANDOC OPTIONS
 
-You can pass optional arguments to Pandoc in an HTML comment in the first
-line of the file. Note that newlines aren't supported and that everything
-must stay in one line. Typically useful ones are:
+You can set Pandoc variables in a YAML front matter, as well as pass options
+to Pandoc in its `options` dictionary:
 
-  - `include-in-header=styles.css` to specify the location of a file
-    containing a style tag, relative to the location of the page.
-    More on this below.
-  - `variable=desc:"Description of my page"` to set Pandoc variables,
-    namely the `desc` one which contains the meta description of the page
-    in the template we normally use. I think Google calls a good description
-    one that's at least 150-characters long.
-  - `toc` and `number-sections` to add a table of contents and number sections.
+```yaml
+title: Page Title
+description: >
+    This is a description of the page, which may be written in multiple
+    lines, should the contents require it.
+date: 12 Nov 2016
 
-# STYLES
-
-With a Pandoc argument like `include-in-header=styles.css`, you can include
-a style tag by specifying the location of a file containing a whole style
-tag, like:
-
+options:
+    css: ../styles.css
+    toc: true
+    number-sections: true
 ```
-<style type="text/css">
-h1 {{
-    float: none;
-    clear: both;
-}}
-</style>
-```
-
-Note that it's not the same as specifying a style sheet as you normally
-would in HTML.
 
 # RUNNING PYTHON FROM TEMPLATES
 
-You can do so between `<%` and `%>` tags, which must be added on lines of
-their owns. Available attributes in scope are the `os` module, the `__params__`
-dictionary.
+You can do so between the `{{` and `}}` tags, either in a single or multiple
+lines. You can also refer to variables set in the front matter.  The `outdir`
+variables is also provided, and the `os` and `entwinelib` modules imported:
 
-Note that you can set `__params__['updated']` to any literal string. It's
-also typically formatted as `%d %b %Y`, although you could take the liberty
-of formatting it `%b %Y`. You can also set it to the empty string to not
-display the last change time on the page.
+```
+{{
+with open('/etc/issue') as fhl:
+    linux = fhl.read()
+}}
+
+This page entitled "{{ print meta['title'] }}" was generated on
+{{ print linux.strip() }} into the {{ print outdir }} directory.  Available
+functions are: <pre>{{ print dir(entwinelib) }}</pre>.
+```
 
 Python blocks are also useful to comment out with `#` anything you wouldn't
-your visitors to see if you used `<!-- -->`. Likewise, it's a neat way to
+want your visitors to see if you used `<!-- -->`. Likewise, it's a neat way to
 specify Vim modelines, e.g.:
 
 ```
-<%
+{{
 # vim: nowrap virtualedit=all
-%>
+}}
 ```
 
-You can define other functions. Functions defined in a given `<%` `%>`
+You can define other functions. Functions defined in a given `{{` `}}`
 block is visible to other blocks in the file too.

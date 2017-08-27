@@ -15,6 +15,6 @@ setup(
     description={description},
     long_description={longdescription},
     scripts=['{package}'],
-    py_modules = ['entwine'],
+    py_modules = ['entwinelib'],
     data_files=[{manpage}],
 )
